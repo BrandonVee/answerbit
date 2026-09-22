@@ -17,7 +17,7 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
@@ -76,22 +76,48 @@ jobs:
         run: |
           set -Eeuo pipefail
           archive="answerbit-${GITHUB_SHA}.tar.gz"
+          remote_archive="/tmp/answerbit-${GITHUB_SHA}.tar.gz"
+          batch_file="${RUNNER_TEMP}/answerbit-upload.sftp"
+          expected_sha256=$(sha256sum "$archive" | awk '{print $1}')
+
           echo "Uploading $(du -h "$archive" | cut -f1) release to ${DEPLOY_HOST}:${DEPLOY_PORT}"
+          printf 'reput %s %s\n' "$archive" "$remote_archive" > "$batch_file"
 
           for attempt in 1 2 3; do
             echo "Upload attempt ${attempt}/3"
-            if timeout 180s scp -4 \
+            if timeout 600s sftp -4 \
+              -b "$batch_file" \
               -i "$HOME/.ssh/deploy_key" \
               -P "$DEPLOY_PORT" \
               -o BatchMode=yes \
-              -o ConnectTimeout=20 \
+              -o ConnectTimeout=30 \
               -o ServerAliveInterval=15 \
               -o ServerAliveCountMax=4 \
-              "$archive" \
-              "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/answerbit-${GITHUB_SHA}.tar.gz"; then
-              echo "Upload completed"
-              exit 0
+              "${DEPLOY_USER}@${DEPLOY_HOST}"; then
+              if ssh -4 \
+                -i "$HOME/.ssh/deploy_key" \
+                -p "$DEPLOY_PORT" \
+                -o BatchMode=yes \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=15 \
+                -o ServerAliveCountMax=4 \
+                "${DEPLOY_USER}@${DEPLOY_HOST}" \
+                "printf '%s  %s\\n' '$expected_sha256' '$remote_archive' | sha256sum --check --status"; then
+                echo "Upload completed and checksum verified"
+                exit 0
+              fi
+
+              echo "Checksum verification failed; restarting the upload"
+              ssh -4 \
+                -i "$HOME/.ssh/deploy_key" \
+                -p "$DEPLOY_PORT" \
+                -o BatchMode=yes \
+                -o ConnectTimeout=30 \
+                "${DEPLOY_USER}@${DEPLOY_HOST}" \
+                "rm -f '$remote_archive'" || true
             fi
+
+            echo "Upload attempt ${attempt}/3 failed; the next attempt will resume the partial file"
             sleep 10
           done
 
