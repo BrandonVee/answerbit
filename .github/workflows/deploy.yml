@@ -13,19 +13,17 @@ concurrency:
   group: answerbit-production
   cancel-in-progress: false
 
-env:
-  DEPLOY_HOST: 122.51.52.232
-  DEPLOY_PORT: "22"
-  DEPLOY_PATH: /opt/1panel/www/sites/txanswerbit.com/index
-  SITE_URL: http://122.51.52.232
-  SITE_HOST: txanswerbit.com
-
 jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 15
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      SITE_HOST: ${{ vars.SITE_HOST }}
 
     steps:
       - name: Checkout
@@ -45,7 +43,7 @@ jobs:
 
       - name: Build static site
         env:
-          NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL || env.SITE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
         run: npm run build
 
       - name: Package site
@@ -54,15 +52,22 @@ jobs:
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           set -Eeuo pipefail
-          test -n "$DEPLOY_USER" || { echo "Missing production secret: DEPLOY_USER"; exit 1; }
-          test -n "$DEPLOY_SSH_KEY" || { echo "Missing production secret: DEPLOY_SSH_KEY"; exit 1; }
+          test -n "$DEPLOY_USER" || { echo "Missing repository secret: DEPLOY_USER"; exit 1; }
+          test -n "$DEPLOY_SSH_KEY" || { echo "Missing repository secret: DEPLOY_SSH_KEY"; exit 1; }
+          test -n "$DEPLOY_KNOWN_HOSTS" || { echo "Missing repository secret: DEPLOY_KNOWN_HOSTS"; exit 1; }
+          test -n "$DEPLOY_HOST" || { echo "Missing repository variable: DEPLOY_HOST"; exit 1; }
+          test -n "$DEPLOY_PORT" || { echo "Missing repository variable: DEPLOY_PORT"; exit 1; }
+          test -n "$DEPLOY_PATH" || { echo "Missing repository variable: DEPLOY_PATH"; exit 1; }
+          test -n "$SITE_URL" || { echo "Missing repository variable: SITE_URL"; exit 1; }
+          test -n "$SITE_HOST" || { echo "Missing repository variable: SITE_HOST"; exit 1; }
           install -m 700 -d "$HOME/.ssh"
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
           chmod 600 "$HOME/.ssh/deploy_key"
-          cp .github/known_hosts "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
       - name: Upload release
@@ -117,8 +122,8 @@ jobs:
 
       - name: Verify deployment
         env:
-          HEALTHCHECK_URL: ${{ vars.SITE_URL || env.SITE_URL }}
-          HEALTHCHECK_HOST: ${{ vars.SITE_HOST || env.SITE_HOST }}
+          HEALTHCHECK_URL: ${{ vars.SITE_URL }}
+          HEALTHCHECK_HOST: ${{ vars.SITE_HOST }}
         run: |
           set -Eeuo pipefail
           for attempt in 1 2 3 4 5; do

@@ -53,12 +53,15 @@ npx serve out
 3. 原子替换 `/opt/1panel/www/sites/txanswerbit.com/index`。
 4. 请求线上首页验证 `AnswerBit`；验证失败时恢复上一个版本。
 
-在 GitHub 仓库的 **Settings → Environments → production → Environment secrets** 中添加：
+部署地址、端口、目录和站点地址不写在工作流中，统一通过 GitHub 仓库的 **Settings → Secrets and variables → Actions** 管理。
+
+在 **Secrets** 中添加：
 
 | Secret | 内容 |
 | --- | --- |
 | `DEPLOY_USER` | SSH 用户名；该用户需要能写入部署目录，1Panel 默认通常使用 `root` |
 | `DEPLOY_SSH_KEY` | CI 专用 SSH 私钥的完整内容 |
+| `DEPLOY_KNOWN_HOSTS` | 服务器 SSH 主机公钥，防止 CI 连接到被冒充的服务器 |
 
 建议在服务器生成单独的部署密钥，而不是复用个人私钥：
 
@@ -66,14 +69,18 @@ npx serve out
 ssh-keygen -t ed25519 -C "github-actions-answerbit" -f ~/.ssh/answerbit_deploy
 cat ~/.ssh/answerbit_deploy.pub >> ~/.ssh/authorized_keys
 cat ~/.ssh/answerbit_deploy
+ssh-keyscan -p 22 122.51.52.232
 ```
 
-把最后一条命令输出的私钥保存为 `DEPLOY_SSH_KEY`。工作流已固定服务器当前的 ED25519 主机公钥，避免 SSH 首次连接被冒充；服务器重装或主机密钥轮换后，需同步更新 [`.github/known_hosts`](.github/known_hosts)。
+把私钥保存为 `DEPLOY_SSH_KEY`，把 `ssh-keyscan` 的输出保存为 `DEPLOY_KNOWN_HOSTS`。服务器重装或主机密钥轮换后，需要重新生成该值。
 
-可选的 **production environment variables**：
+在 **Variables** 中添加：
 
-| Variable | 默认值 | 用途 |
+| Variable | 配置值 | 用途 |
 | --- | --- | --- |
+| `DEPLOY_HOST` | `122.51.52.232` | SSH 服务器地址 |
+| `DEPLOY_PORT` | `22` | SSH 端口 |
+| `DEPLOY_PATH` | `/opt/1panel/www/sites/txanswerbit.com/index` | 1Panel 网站运行目录 |
 | `SITE_URL` | `http://122.51.52.232` | 构建 canonical/sitemap，并作为健康检查地址 |
 | `SITE_HOST` | `txanswerbit.com` | 健康检查发送给 OpenResty 的 `Host` 请求头 |
 
