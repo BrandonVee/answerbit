@@ -81,7 +81,7 @@ ssh-keyscan -p 22 122.51.52.232
 | `DEPLOY_HOST` | `122.51.52.232` | SSH 服务器地址 |
 | `DEPLOY_PORT` | `22` | SSH 端口 |
 | `DEPLOY_PATH` | `/opt/1panel/www/sites/txanswerbit.com/index` | 1Panel 网站运行目录 |
-| `SITE_URL` | `http://122.51.52.232` | 构建 canonical/sitemap，并作为健康检查地址 |
+| `SITE_URL` | `https://txanswerbit.com` | 构建 canonical/sitemap，并作为健康检查地址 |
 | `SITE_HOST` | `txanswerbit.com` | 健康检查发送给 OpenResty 的 `Host` 请求头 |
 
 1Panel 中的网站运行目录应保持为 `/opt/1panel/www/sites/txanswerbit.com/index`。安全响应头应在 OpenResty 网站配置中添加：
