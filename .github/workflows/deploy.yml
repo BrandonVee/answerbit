@@ -81,6 +81,17 @@ jobs:
           expected_sha256=$(sha256sum "$archive" | awk '{print $1}')
 
           echo "Uploading $(du -h "$archive" | cut -f1) release to ${DEPLOY_HOST}:${DEPLOY_PORT}"
+          # `reput` can resume an existing file but fails when the destination
+          # does not exist, so create an empty destination for the first run.
+          ssh -4 \
+            -i "$HOME/.ssh/deploy_key" \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=4 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "touch '$remote_archive'"
           printf 'reput %s %s\n' "$archive" "$remote_archive" > "$batch_file"
 
           for attempt in 1 2 3; do
