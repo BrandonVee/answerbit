@@ -75,9 +75,28 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           set -Eeuo pipefail
-          scp -i "$HOME/.ssh/deploy_key" -P "$DEPLOY_PORT" \
-            "answerbit-${GITHUB_SHA}.tar.gz" \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/answerbit-${GITHUB_SHA}.tar.gz"
+          archive="answerbit-${GITHUB_SHA}.tar.gz"
+          echo "Uploading $(du -h "$archive" | cut -f1) release to ${DEPLOY_HOST}:${DEPLOY_PORT}"
+
+          for attempt in 1 2 3; do
+            echo "Upload attempt ${attempt}/3"
+            if timeout 180s scp -4 \
+              -i "$HOME/.ssh/deploy_key" \
+              -P "$DEPLOY_PORT" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=20 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=4 \
+              "$archive" \
+              "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/answerbit-${GITHUB_SHA}.tar.gz"; then
+              echo "Upload completed"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Upload failed after 3 attempts"
+          exit 1
 
       - name: Activate release
         id: activate
